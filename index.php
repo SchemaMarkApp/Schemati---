@@ -2,10 +2,10 @@
 /**
  * Plugin Name: Schemati
  * Description: Complete Schema markup plugin with all features and sidebar
- * Plugin URI: https://schemamarkapp.com/
+ * Plugin URI: https://shayohayon.com
  * Author: Shay Ohayon
- * Author URI: https://schemamarkapp.com/
- * Version: 5.0.0
+ * Author URI: https://shayohayon.com
+ * Version: 6.0.0
  * Text Domain: schemati
  * Requires at least: 5.0
  * Tested up to: 6.4
@@ -1709,7 +1709,7 @@ private function format_navigation_items($menu_items, $element_type) {
         </tr>
     </table>
     <?php
-}  <?php
+}
     }
     
     /**
