@@ -2,7 +2,7 @@
 /**
  * Plugin Name: סכמתי - Schemati
  * Description: פלאגין סכמות מלא לוורדפרס עם עורך חי וסרגל צד
- * Version: 6.0.0
+ * Version: 7.0.0
  * Author: Shay Ohayon
  * Text Domain: schemati
  * Requires at least: 5.0
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define constants
-define('SCHEMATI_VERSION', '6.0.0');
+define('SCHEMATI_VERSION', '7.0.0');
 define('SCHEMATI_FILE', __FILE__);
 define('SCHEMATI_DIR', plugin_dir_path(__FILE__));
 define('SCHEMATI_URL', plugin_dir_url(__FILE__));
