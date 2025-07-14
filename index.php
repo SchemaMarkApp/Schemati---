@@ -2,7 +2,7 @@
 /**
  * Plugin Name: סכמתי - Schemati
  * Description: פלאגין סכמות מלא לוורדפרס עם עורך חי וסרגל צד
- * Version: 7.0.0
+ * Version: 6.0.0
  * Author: Shay Ohayon
  * Text Domain: schemati
  * Requires at least: 5.0
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define constants
-define('SCHEMATI_VERSION', '7.0.0');
+define('SCHEMATI_VERSION', '6.0.0');
 define('SCHEMATI_FILE', __FILE__);
 define('SCHEMATI_DIR', plugin_dir_path(__FILE__));
 define('SCHEMATI_URL', plugin_dir_url(__FILE__));
@@ -28,12 +28,14 @@ class Schemati {
     
     private static $instance = null;
     private $cache_group = 'schemati_schemas';
+    private $github_updater = null;
     private $schema_types = array(
     'LocalBusiness', 'Service', 'Product', 'Event', 'Person', 
     'FAQPage', 'HowTo', 'Recipe', 'VideoObject', 'Review', 
     'Organization', 'Article', 'BlogPosting', 'NewsArticle', 'WebSite',
     'ImageObject', 'AudioObject', 'CreativeWork', 'Place', 'Offer'
 );
+private $github_updater = null;
     
     /**
      * Singleton pattern
@@ -51,7 +53,12 @@ class Schemati {
     private function __construct() {
         add_action('init', array($this, 'load_textdomain'), 1);
         add_action('init', array($this, 'init'), 10);
+        add_action('admin_init', array($this, 'init_github_updater'), 5);
     }
+    
+    /**
+     * Add updates page to admin menu - add this to the admin_menu method
+     */
     
     /**
      * Load text domain
@@ -99,6 +106,49 @@ class Schemati {
             add_action('admin_bar_menu', array($this, 'add_admin_bar'), 100);
             add_action('wp_footer', array($this, 'add_sidebar_html'));
             add_action('wp_enqueue_scripts', array($this, 'enqueue_sidebar_scripts'));
+        }
+    }
+
+    private function init_github_updater() {
+        // Only load in admin
+        if (!is_admin()) {
+            return;
+        }
+        
+        // Check if the updater file exists
+        $updater_file = SCHEMATI_DIR . 'includes/class-github-updater.php';
+        
+        if (!file_exists($updater_file)) {
+            // Create includes directory if it doesn't exist
+            $includes_dir = SCHEMATI_DIR . 'includes/';
+            if (!file_exists($includes_dir)) {
+                wp_mkdir_p($includes_dir);
+            }
+            
+            // Log error for debugging
+            error_log('Schemati: GitHub updater file not found at ' . $updater_file);
+            return;
+        }
+        
+        // Include the GitHub updater class
+        require_once $updater_file;
+        
+        // Check if class exists
+        if (!class_exists('Schemati_GitHub_Updater')) {
+            error_log('Schemati: GitHub updater class not found');
+            return;
+        }
+        
+        try {
+            // Initialize updater with your GitHub repository details
+            $this->github_updater = new Schemati_GitHub_Updater(
+                SCHEMATI_FILE,              // Plugin file path
+                'YourGitHubUsername',       // Replace with your actual GitHub username
+                'schemati-plugin',          // Replace with your actual repository name
+                ''                          // Optional: GitHub personal access token for private repos
+            );
+        } catch (Exception $e) {
+            error_log('Schemati: Failed to initialize GitHub updater - ' . $e->getMessage());
         }
     }
     
@@ -793,12 +843,15 @@ public function admin_menu() {
         'schemati-faq' => array(__('שאלות נפוצות', 'schemati'), 'faq_page'),
         'schemati-tools' => array(__('כלי בדיקה', 'schemati'), 'tools_page'),
         'schemati-import-export' => array(__('ייבוא/ייצוא', 'schemati'), 'import_export_page')
+        'schemati-updates' => array(__('עדכונים', 'schemati'), 'updates_page')
+
     );
     
     foreach ($submenu_pages as $slug => $page_data) {
         add_submenu_page('schemati', $page_data[0], $page_data[0], 'manage_options', $slug, array($this, $page_data[1]));
     }
 }
+
 
     public function admin_init() {
     $settings_groups = array(
@@ -858,14 +911,14 @@ public function admin_scripts($hook) {
             <form method="post" action="">
                 <?php wp_nonce_field('schemati_save', 'schemati_nonce'); ?>
                 
-                <h2><?php _e('הגדרות Schema כלליות', 'schemati'); ?></h2>
+                <h2><?php _e('הגדרות סכמה כלליות', 'schemati'); ?></h2>
                 <table class="form-table">
                     <tr>
-                        <th scope="row"><?php _e('הפעל סימון Schema', 'schemati'); ?></th>
+                        <th scope="row"><?php _e('הפעל סימון סכמה', 'schemati'); ?></th>
                         <td>
                             <label>
                                 <input type="checkbox" name="enabled" value="1" <?php checked(1, $settings['enabled']); ?> />
-                                <?php _e('הפעל פלט סימון Schema בכל האתר', 'schemati'); ?>
+                                <?php _e('הפעל פלט סימון סכמה בכל האתר', 'schemati'); ?>
                             </label>
                         </td>
                     </tr>
@@ -992,18 +1045,18 @@ public function admin_scripts($hook) {
         
         ?>
         <div class="wrap">
-            <h1><?php _e('הגדרות Schema מאמרים', 'schemati'); ?></h1>
+            <h1><?php _e('הגדרות סכמה מאמרים', 'schemati'); ?></h1>
             
             <form method="post" action="">
                 <?php wp_nonce_field('schemati_save', 'schemati_nonce'); ?>
                 
                 <table class="form-table">
                     <tr>
-                        <th scope="row"><?php _e('הפעל Schema מאמרים', 'schemati'); ?></th>
+                        <th scope="row"><?php _e('הפעל סכמה מאמרים', 'schemati'); ?></th>
                         <td>
                             <label>
                                 <input type="checkbox" name="enabled" value="1" <?php checked(1, $settings['enabled']); ?> />
-                                <?php _e('צור סימון Schema עבור פוסטים', 'schemati'); ?>
+                                <?php _e('צור סימון סכמה עבור פוסטים', 'schemati'); ?>
                             </label>
                         </td>
                     </tr>
@@ -1030,18 +1083,18 @@ public function business_page() {
     
     ?>
     <div class="wrap">
-        <h1><?php _e('Schema עסק מקומי', 'schemati'); ?></h1>
+        <h1><?php _e('סכמה עסק מקומי', 'schemati'); ?></h1>
         
         <form method="post" action="">
             <?php wp_nonce_field('schemati_save', 'schemati_nonce'); ?>
             
             <table class="form-table">
                 <tr>
-                    <th scope="row"><?php _e('הפעל Schema עסק מקומי', 'schemati'); ?></th>
+                    <th scope="row"><?php _e('הפעל סכמה עסק מקומי', 'schemati'); ?></th>
                     <td>
                         <label>
                             <input type="checkbox" name="enabled" value="1" <?php checked(1, $settings['enabled'] ?? false); ?> />
-                            <?php _e('צור סימון Schema עבור עסק מקומי', 'schemati'); ?>
+                            <?php _e('צור סימון סכמה עבור עסק מקומי', 'schemati'); ?>
                         </label>
                     </td>
                 </tr>
@@ -1111,18 +1164,18 @@ public function person_page() {
     
     ?>
     <div class="wrap">
-        <h1><?php _e('Schema אדם', 'schemati'); ?></h1>
+        <h1><?php _e('סכמה אדם', 'schemati'); ?></h1>
         
         <form method="post" action="">
             <?php wp_nonce_field('schemati_save', 'schemati_nonce'); ?>
             
             <table class="form-table">
                 <tr>
-                    <th scope="row"><?php _e('הפעל Schema אדם', 'schemati'); ?></th>
+                    <th scope="row"><?php _e('הפעל סכמה אדם', 'schemati'); ?></th>
                     <td>
                         <label>
                             <input type="checkbox" name="enabled" value="1" <?php checked(1, $settings['enabled'] ?? false); ?> />
-                            <?php _e('צור סימון Schema עבור אדם', 'schemati'); ?>
+                            <?php _e('צור סימון סכמה עבור אדם', 'schemati'); ?>
                         </label>
                     </td>
                 </tr>
@@ -1179,18 +1232,18 @@ public function product_page() {
     
     ?>
     <div class="wrap">
-        <h1><?php _e('Schema מוצר', 'schemati'); ?></h1>
+        <h1><?php _e('סכמה מוצר', 'schemati'); ?></h1>
         
         <form method="post" action="">
             <?php wp_nonce_field('schemati_save', 'schemati_nonce'); ?>
             
             <table class="form-table">
                 <tr>
-                    <th scope="row"><?php _e('הפעל Schema מוצר', 'schemati'); ?></th>
+                    <th scope="row"><?php _e('הפעל סכמה מוצר', 'schemati'); ?></th>
                     <td>
                         <label>
                             <input type="checkbox" name="enabled" value="1" <?php checked(1, $settings['enabled'] ?? false); ?> />
-                            <?php _e('צור סימון Schema עבור מוצרים', 'schemati'); ?>
+                            <?php _e('צור סימון סכמה עבור מוצרים', 'schemati'); ?>
                         </label>
                     </td>
                 </tr>
@@ -1237,18 +1290,18 @@ public function faq_page() {
     
     ?>
     <div class="wrap">
-        <h1><?php _e('Schema שאלות נפוצות', 'schemati'); ?></h1>
+        <h1><?php _e('סכמה שאלות נפוצות', 'schemati'); ?></h1>
         
         <form method="post" action="">
             <?php wp_nonce_field('schemati_save', 'schemati_nonce'); ?>
             
             <table class="form-table">
                 <tr>
-                    <th scope="row"><?php _e('הפעל Schema שאלות נפוצות', 'schemati'); ?></th>
+                    <th scope="row"><?php _e('הפעל סכמה שאלות נפוצות', 'schemati'); ?></th>
                     <td>
                         <label>
                             <input type="checkbox" name="enabled" value="1" <?php checked(1, $settings['enabled'] ?? false); ?> />
-                            <?php _e('צור סימון Schema עבור דפי שאלות נפוצות', 'schemati'); ?>
+                            <?php _e('צור סימון סכמה עבור דפי שאלות נפוצות', 'schemati'); ?>
                         </label>
                     </td>
                 </tr>
@@ -1282,29 +1335,23 @@ public function tools_page() {
         <h1><?php _e('כלי Schemati ואבחון', 'schemati'); ?></h1>
         
         <div class="card">
-            <h2><?php _e('כלי בדיקת Schema', 'schemati'); ?></h2>
-            <p><?php _e('בדוק את סימון ה-Schema שלך:', 'schemati'); ?></p>
+            <h2><?php _e('כלי בדיקת סכמה', 'schemati'); ?></h2>
+            <p><?php _e('בדוק את סימון הסכמה שלך:', 'schemati'); ?></p>
             <p>
-                <a href="https://search.google.com/test/rich-results" target="_blank" class="button button-primary">
-                    <?php _e('בדיקת תוצאות עשירות של Google', 'schemati'); ?>
-                </a>
-                <a href="https://validator.schema.org/" target="_blank" class="button button-secondary">
-                    <?php _e('מאמת Schema.org', 'schemati'); ?>
-                </a>
-                <a href="https://developers.facebook.com/tools/debug/" target="_blank" class="button button-secondary">
-                    <?php _e('כלי ניפוי Facebook', 'schemati'); ?>
+                <a href="https://schemamarkup.net/" target="_blank" class="button button-primary">
+                    <?php _e('בדיקת סכמה - SchemaMarkup.net', 'schemati'); ?>
                 </a>
             </p>
         </div>
         
         <div class="card">
-            <h2><?php _e('סטטיסטיקות Schema', 'schemati'); ?></h2>
+            <h2><?php _e('סטטיסטיקות סכמה', 'schemati'); ?></h2>
             <?php $this->display_schema_statistics(); ?>
         </div>
         
         <div class="card">
             <h2><?php _e('בדיקת תקינות', 'schemati'); ?></h2>
-            <p><?php _e('בדוק תקינות של כל ה-Schemas באתר:', 'schemati'); ?></p>
+            <p><?php _e('בדוק תקינות של כל הסכמות באתר:', 'schemati'); ?></p>
             <p>
                 <button type="button" id="validate-schemas" class="button button-secondary">
                     <?php _e('הפעל בדיקת תקינות', 'schemati'); ?>
@@ -1330,7 +1377,7 @@ public function tools_page() {
                     </td>
                 </tr>
                 <tr>
-                    <td><strong><?php _e('Schema כולל', 'schemati'); ?></strong></td>
+                    <td><strong><?php _e('סכמה כולל', 'schemati'); ?></strong></td>
                     <td><?php echo $this->count_total_schemas(); ?></td>
                 </tr>
             </table>
@@ -1344,11 +1391,11 @@ public function tools_page() {
         
         button.disabled = true;
         button.textContent = 'בודק...';
-        results.innerHTML = '<p>בודק תקינות schemas...</p>';
+        results.innerHTML = '<p>בודק תקינות סכמות...</p>';
         
         // This would typically make an AJAX call to validate schemas
         setTimeout(function() {
-            results.innerHTML = '<div style="background: #d4edda; padding: 10px; border-radius: 4px; color: #155724;"><strong>✓ בדיקה הושלמה</strong><br>נמצאו 0 שגיאות ב-schemas הקיימים.</div>';
+            results.innerHTML = '<div style="background: #d4edda; padding: 10px; border-radius: 4px; color: #155724;"><strong>✓ בדיקה הושלמה</strong><br>נמצאו 0 שגיאות בסכמות הקיימות.</div>';
             button.disabled = false;
             button.textContent = '<?php _e('הפעל בדיקת תקינות', 'schemati'); ?>';
         }, 2000);
@@ -1363,11 +1410,11 @@ public function tools_page() {
 public function import_export_page() {
     ?>
     <div class="wrap">
-        <h1><?php _e('ייבוא/ייצוא Schemas', 'schemati'); ?></h1>
+        <h1><?php _e('ייבוא/ייצוא סכמות', 'schemati'); ?></h1>
         
         <div class="card">
             <h2><?php _e('ייצוא הגדרות', 'schemati'); ?></h2>
-            <p><?php _e('ייצא את כל הגדרות ה-Schema שלך לקובץ JSON:', 'schemati'); ?></p>
+            <p><?php _e('ייצא את כל הגדרות הסכמה שלך לקובץ JSON:', 'schemati'); ?></p>
             <p>
                 <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=schemati-import-export&action=export'), 'schemati_export'); ?>" class="button button-primary">
                     <?php _e('ייצא הגדרות', 'schemati'); ?>
@@ -1394,11 +1441,11 @@ public function import_export_page() {
         </div>
         
         <div class="card">
-            <h2><?php _e('גיבוי Schema מותאמים', 'schemati'); ?></h2>
-            <p><?php _e('ייצא/ייבא schemas מותאמים מפוסטים וכדפים:', 'schemati'); ?></p>
+            <h2><?php _e('גיבוי סכמה מותאמים', 'schemati'); ?></h2>
+            <p><?php _e('ייצא/ייבא סכמות מותאמות מפוסטים וכדפים:', 'schemati'); ?></p>
             <p>
                 <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=schemati-import-export&action=export_custom'), 'schemati_export_custom'); ?>" class="button">
-                    <?php _e('ייצא Schemas מותאמים', 'schemati'); ?>
+                    <?php _e('ייצא סכמות מותאמות', 'schemati'); ?>
                 </a>
             </p>
         </div>
@@ -1416,7 +1463,123 @@ public function import_export_page() {
     </div>
     <?php
 }
-    
+    public function updates_page() {
+        if (isset($_POST['check_update_nonce']) && wp_verify_nonce($_POST['check_update_nonce'], 'schemati_check_update')) {
+            if (current_user_can('update_plugins') && $this->github_updater) {
+                $this->github_updater->force_update_check();
+                echo '<div class="notice notice-success"><p>' . __('בדיקת עדכון הושלמה!', 'schemati') . '</p></div>';
+            }
+        }
+        
+        $remote_version = ($this->github_updater) ? $this->github_updater->get_remote_version() : null;
+        $current_version = SCHEMATI_VERSION;
+        $update_available = $remote_version && version_compare($current_version, $remote_version, '<');
+        
+        ?>
+        <div class="wrap">
+            <h1><?php _e('Schemati - עדכונים', 'schemati'); ?></h1>
+            
+            <div class="card">
+                <h2><?php _e('מידע גרסה', 'schemati'); ?></h2>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><?php _e('גרסה נוכחית', 'schemati'); ?></th>
+                        <td>
+                            <strong><?php echo esc_html($current_version); ?></strong>
+                            <?php if ($update_available): ?>
+                                <span style="color: #d63384; margin-right: 10px;">
+                                    <?php _e('(עדכון זמין)', 'schemati'); ?>
+                                </span>
+                            <?php else: ?>
+                                <span style="color: #198754; margin-right: 10px;">
+                                    <?php _e('(מעודכן)', 'schemati'); ?>
+                                </span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php _e('גרסה אחרונה', 'schemati'); ?></th>
+                        <td>
+                            <?php if ($remote_version): ?>
+                                <strong><?php echo esc_html($remote_version); ?></strong>
+                            <?php else: ?>
+                                <em><?php _e('לא ניתן לבדוק', 'schemati'); ?></em>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php _e('מקור עדכון', 'schemati'); ?></th>
+                        <td>
+                            <a href="https://github.com/YourGitHubUsername/schemati-plugin" target="_blank">
+                                GitHub Repository
+                            </a>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            
+            <?php if ($update_available): ?>
+            <div class="card">
+                <h2><?php _e('עדכון זמין', 'schemati'); ?></h2>
+                <p><?php printf(__('גרסה חדשה (%s) זמינה להורדה.', 'schemati'), $remote_version); ?></p>
+                
+                <?php
+                $plugin_slug = plugin_basename(SCHEMATI_FILE);
+                $update_url = wp_nonce_url(
+                    self_admin_url('update.php?action=upgrade-plugin&plugin=' . urlencode($plugin_slug)),
+                    'upgrade-plugin_' . $plugin_slug
+                );
+                ?>
+                
+                <p>
+                    <a href="<?php echo esc_url($update_url); ?>" class="button button-primary">
+                        <?php _e('עדכן עכשיו', 'schemati'); ?>
+                    </a>
+                    <a href="https://github.com/YourGitHubUsername/schemati-plugin/releases/latest" target="_blank" class="button button-secondary">
+                        <?php _e('הצג הערות גרסה', 'schemati'); ?>
+                    </a>
+                </p>
+            </div>
+            <?php endif; ?>
+            
+            <div class="card">
+                <h2><?php _e('בדיקת עדכון ידנית', 'schemati'); ?></h2>
+                <p><?php _e('לחץ על הכפתור למטה לבדיקת עדכונים ידנית מ-GitHub.', 'schemati'); ?></p>
+                
+                <form method="post" action="">
+                    <?php wp_nonce_field('schemati_check_update', 'check_update_nonce'); ?>
+                    <p>
+                        <button type="submit" class="button button-secondary">
+                            <?php _e('בדוק עדכונים', 'schemati'); ?>
+                        </button>
+                    </p>
+                </form>
+            </div>
+        </div>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            // Auto-refresh update status every 30 seconds
+            setInterval(function() {
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'schemati_check_update',
+                        nonce: '<?php echo wp_create_nonce('schemati_update_check'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success && response.data.update_available) {
+                            $('.wrap').prepend('<div class="notice notice-warning"><p><strong>גרסה חדשה זמינה:</strong> ' + response.data.version + '</p></div>');
+                        }
+                    }
+                });
+            }, 30000);
+        });
+        </script>
+        <?php
+    }
+}
     /**
      * Handle form submissions
      */
@@ -1476,7 +1639,7 @@ public function import_export_page() {
             <td><?php echo number_format($total_posts); ?></td>
         </tr>
         <tr>
-            <td><strong><?php _e('פוסטים עם Schema מותאם', 'schemati'); ?></strong></td>
+            <td><strong><?php _e('פוסטים עם סכמה מותאמת', 'schemati'); ?></strong></td>
             <td><?php echo number_format($posts_with_custom_schemas); ?></td>
         </tr>
         <tr>
@@ -1486,7 +1649,7 @@ public function import_export_page() {
     </table>
     
     <?php if (!empty($type_counts)): ?>
-        <h4><?php _e('פילוח לפי סוג Schema', 'schemati'); ?></h4>
+        <h4><?php _e('פילוח לפי סוג סכמה', 'schemati'); ?></h4>
         <table class="widefat">
             <?php foreach ($type_counts as $type => $count): ?>
                 <tr>
@@ -1523,7 +1686,7 @@ private function count_total_schemas() {
     public function add_meta_boxes() {
         add_meta_box(
             'schemati_schema',
-            __('הגדרות Schema', 'schemati'),
+            __('הגדרות סכמה', 'schemati'),
             array($this, 'meta_box_schema'),
             array('post', 'page'),
             'normal',
@@ -1545,7 +1708,7 @@ private function count_total_schemas() {
     <div class="schemati-meta-box">
         <table class="form-table">
             <tr>
-                <th><label for="schemati_type"><?php _e('סוג Schema ראשי', 'schemati'); ?></label></th>
+                <th><label for="schemati_type"><?php _e('סוג סכמה ראשי', 'schemati'); ?></label></th>
                 <td>
                     <select name="schemati_type" id="schemati_type">
                         <option value=""><?php _e('ברירת מחדל', 'schemati'); ?></option>
@@ -1565,12 +1728,12 @@ private function count_total_schemas() {
                 <th><label for="schemati_description"><?php _e('תיאור מותאם', 'schemati'); ?></label></th>
                 <td>
                     <textarea name="schemati_description" id="schemati_description" rows="3" style="width:100%;"><?php echo esc_textarea($schema_description); ?></textarea>
-                    <p class="description"><?php _e('תיאור אופציונלי מותאם אישית עבור סימון Schema', 'schemati'); ?></p>
+                    <p class="description"><?php _e('תיאור אופציונלי מותאם אישית עבור סימון סכמה', 'schemati'); ?></p>
                 </td>
             </tr>
         </table>
         
-        <h4><?php _e('Schemas מותאמים', 'schemati'); ?></h4>
+        <h4><?php _e('סכמות מותאמות', 'schemati'); ?></h4>
         <div id="custom-schemas-list">
             <?php if (!empty($custom_schemas) && is_array($custom_schemas)): ?>
                 <?php foreach ($custom_schemas as $index => $schema): ?>
@@ -1589,13 +1752,13 @@ private function count_total_schemas() {
                     </div>
                 <?php endforeach; ?>
             <?php else: ?>
-                <p style="color: #666;"><?php _e('אין schemas מותאמים. השתמש בעורך הצד כדי להוסיף.', 'schemati'); ?></p>
+                <p style="color: #666;"><?php _e('אין סכמות מותאמות. השתמש בעורך הצד כדי להוסיף.', 'schemati'); ?></p>
             <?php endif; ?>
         </div>
         
         <p style="margin-top: 15px;">
             <button type="button" onclick="if(typeof toggleSchematiSidebar === 'function') { toggleSchematiSidebar(); } else { alert('עורך הצד זמין רק בחזית האתר'); }" class="button button-secondary">
-                <?php _e('פתח עורך Schema מתקדם', 'schemati'); ?>
+                <?php _e('פתח עורך סכמה מתקדם', 'schemati'); ?>
             </button>
         </p>
     </div>
@@ -2469,7 +2632,7 @@ private function render_interactive_sidebar() {
                         <?php _e('עורך Schemati', 'schemati'); ?>
                     </h3>
                     <div style="font-size: 12px; opacity: 0.8; margin-top: 4px;">
-                        <span id="schema-count"><?php echo count($current_schemas); ?> schemas <?php _e('זוהו', 'schemati'); ?></span>
+                        <span id="schema-count"><?php echo count($current_schemas); ?> סכמות <?php _e('זוהו', 'schemati'); ?></span>
                         <span style="margin-left: 10px;">•</span>
                         <span id="schema-status"><?php echo $general_settings['enabled'] ? __('פעיל', 'schemati') : __('מושבת', 'schemati'); ?></span>
                     </div>
@@ -2483,11 +2646,11 @@ private function render_interactive_sidebar() {
             <div style="display: flex;">
                 <button class="schemati-tab active" onclick="showSchematiTab('current')" style="flex: 1; padding: 12px; border: none; background: white; cursor: pointer; border-bottom: 2px solid #0073aa; font-size: 12px;">
                     <span style="display: block;"><?php _e('נוכחי', 'schemati'); ?></span>
-                    <small style="color: #666;" id="current-count"><?php echo count($current_schemas); ?> schemas</small>
+                    <small style="color: #666;" id="current-count"><?php echo count($current_schemas); ?> סכמות</small>
                 </button>
                 <button class="schemati-tab" onclick="showSchematiTab('add')" style="flex: 1; padding: 12px; border: none; background: #f1f1f1; cursor: pointer; border-bottom: 2px solid transparent; font-size: 12px;">
                     <span style="display: block;"><?php _e('הוסף', 'schemati'); ?></span>
-                    <small style="color: #666;"><?php _e('Schema חדש', 'schemati'); ?></small>
+                    <small style="color: #666;"><?php _e('סכמה חדשה', 'schemati'); ?></small>
                 </button>
                 <button class="schemati-tab" onclick="showSchematiTab('settings')" style="flex: 1; padding: 12px; border: none; background: #f1f1f1; cursor: pointer; border-bottom: 2px solid transparent; font-size: 12px;">
                     <span style="display: block;"><?php _e('הגדרות', 'schemati'); ?></span>
@@ -2502,8 +2665,8 @@ private function render_interactive_sidebar() {
                 <?php if (empty($current_schemas)): ?>
                     <div style="text-align: center; padding: 40px 20px; color: #666;">
                         <div style="font-size: 48px; margin-bottom: 10px;">📋</div>
-                        <h4><?php _e('לא זוהו schemas', 'schemati'); ?></h4>
-                        <p><?php _e('הוסף Schema ראשון באמצעות הטאב "הוסף".', 'schemati'); ?></p>
+                        <h4><?php _e('לא זוהו סכמות', 'schemati'); ?></h4>
+                        <p><?php _e('הוסף סכמה ראשונה באמצעות הטאב "הוסף".', 'schemati'); ?></p>
                     </div>
                 <?php else: ?>
                     <?php foreach ($current_schemas as $index => $schema): ?>
@@ -2515,12 +2678,12 @@ private function render_interactive_sidebar() {
         
         <!-- Add Tab -->
         <div id="schemati-tab-add" class="schemati-tab-content" style="display: none; padding: 20px;">
-            <h4 style="margin: 0 0 15px 0; color: #333; font-size: 14px;"><?php _e('הוסף SCHEMA חדש', 'schemati'); ?></h4>
+            <h4 style="margin: 0 0 15px 0; color: #333; font-size: 14px;"><?php _e('הוסף סכמה חדשה', 'schemati'); ?></h4>
             
             <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 5px; font-weight: 500;"><?php _e('סוג Schema:', 'schemati'); ?></label>
+                <label style="display: block; margin-bottom: 5px; font-weight: 500;"><?php _e('סוג סכמה:', 'schemati'); ?></label>
                 <select id="new-schema-type" onchange="loadSchemaTemplate()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    <option value=""><?php _e('בחר סוג Schema', 'schemati'); ?></option>
+                    <option value=""><?php _e('בחר סוג סכמה', 'schemati'); ?></option>
                     <option value="LocalBusiness">🏢 <?php _e('עסק מקומי', 'schemati'); ?></option>
                     <option value="Product">📦 <?php _e('מוצר', 'schemati'); ?></option>
                     <option value="Person">👤 <?php _e('אדם', 'schemati'); ?></option>
@@ -2535,7 +2698,7 @@ private function render_interactive_sidebar() {
                     <div id="schema-template-fields"></div>
                     <div style="margin-top: 20px;">
                         <button type="submit" style="width: 100%; background: #0073aa; color: white; border: none; padding: 12px; border-radius: 4px; cursor: pointer; font-weight: 500;">
-                            ➕ <?php _e('הוסף Schema', 'schemati'); ?>
+                            ➕ <?php _e('הוסף סכמה', 'schemati'); ?>
                         </button>
                     </div>
                 </form>
@@ -2549,13 +2712,13 @@ private function render_interactive_sidebar() {
             <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
                 <label style="display: flex; align-items: center; cursor: pointer;">
                     <input type="checkbox" id="schema-enabled" <?php checked($general_settings['enabled']); ?> onchange="toggleGlobalSchema()" style="margin-left: 8px;">
-                    <span style="font-weight: 500;"><?php _e('הפעל סימון Schema', 'schemati'); ?></span>
+                    <span style="font-weight: 500;"><?php _e('הפעל סימון סכמה', 'schemati'); ?></span>
                 </label>
             </div>
             
             <div style="margin-bottom: 20px;">
                 <button onclick="showSchematiPreview()" style="width: 100%; padding: 12px; background: #0073aa; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                    🔍 <?php _e('תצוגה מקדימה של Schema', 'schemati'); ?>
+                    🔍 <?php _e('תצוגה מקדימה של סכמה', 'schemati'); ?>
                 </button>
             </div>
             
@@ -2571,11 +2734,11 @@ private function render_interactive_sidebar() {
     <div id="schemati-schema-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100000;">
         <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 1200px; height: 85%; background: white; border-radius: 8px; padding: 0; overflow: hidden;">
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #0073aa; color: white;">
-                <h2 style="margin: 0; color: white;">🔍 <?php _e('תצוגה מקדימה של Schema', 'schemati'); ?></h2>
+                <h2 style="margin: 0; color: white;">🔍 <?php _e('תצוגה מקדימה של סכמה', 'schemati'); ?></h2>
                 <button onclick="hideSchematiPreview()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: white;">&times;</button>
             </div>
             <div id="schema-modal-content" style="height: calc(100% - 80px); overflow-y: auto; padding: 20px; font-family: monospace; font-size: 12px;">
-                <?php _e('טוען נתוני schema...', 'schemati'); ?>
+                <?php _e('טוען נתוני סכמה...', 'schemati'); ?>
             </div>
         </div>
     </div>
@@ -2710,7 +2873,7 @@ private function render_sidebar_scripts() {
         var schemaType = document.getElementById('new-schema-type').value;
         
         if (!schemaType) {
-            alert('<?php _e('אנא בחר סוג Schema', 'schemati'); ?>');
+            alert('<?php _e('אנא בחר סוג סכמה', 'schemati'); ?>');
             return false;
         }
         
@@ -2724,7 +2887,7 @@ private function render_sidebar_scripts() {
         }
         
         SchematiSidebar.ajaxCall('schemati_add_schema', data, function(response) {
-            alert('<?php _e('Schema נוסף בהצלחה!', 'schemati'); ?>');
+            alert('<?php _e('סכמה נוספה בהצלחה!', 'schemati'); ?>');
             form.reset();
             document.getElementById('new-schema-form').style.display = 'none';
             document.getElementById('new-schema-type').value = '';
@@ -2744,7 +2907,7 @@ private function render_sidebar_scripts() {
     }
     
     function deleteSchema(index) {
-        if (!confirm('<?php _e('האם אתה בטוח שברצונך למחוק Schema זה?', 'schemati'); ?>')) {
+        if (!confirm('<?php _e('האם אתה בטוח שברצונך למחוק סכמה זו?', 'schemati'); ?>')) {
             return;
         }
         
@@ -2752,7 +2915,7 @@ private function render_sidebar_scripts() {
             schema_index: index,
             post_id: SchematiSidebar.currentPostId
         }, function(response) {
-            alert('<?php _e('Schema נמחק בהצלחה!', 'schemati'); ?>');
+            alert('<?php _e('סכמה נמחקה בהצלחה!', 'schemati'); ?>');
             location.reload();
         });
     }
@@ -2784,14 +2947,14 @@ private function render_sidebar_scripts() {
         });
         
         if (schemas.length === 0) {
-            content.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><h3><?php _e('לא נמצא Schema', 'schemati'); ?></h3><p><?php _e('לא זוהה סימון Schema בדף זה.', 'schemati'); ?></p></div>';
+            content.innerHTML = '<div style="text-align: center; padding: 40px; color: #666;"><h3><?php _e('לא נמצאה סכמה', 'schemati'); ?></h3><p><?php _e('לא זוהה סימון סכמה בדף זה.', 'schemati'); ?></p></div>';
         } else {
-            var html = '<div style="margin-bottom: 20px; padding: 15px; background: #d4edda; border-radius: 8px; color: #155724;"><h3 style="margin: 0;"><?php _e('נמצאו', 'schemati'); ?> ' + schemas.length + ' <?php _e('סוגי Schema', 'schemati'); ?></h3></div>';
+            var html = '<div style="margin-bottom: 20px; padding: 15px; background: #d4edda; border-radius: 8px; color: #155724;"><h3 style="margin: 0;"><?php _e('נמצאו', 'schemati'); ?> ' + schemas.length + ' <?php _e('סוגי סכמה', 'schemati'); ?></h3></div>';
             
             schemas.forEach(function(schema, index) {
                 var schemaType = schema['@type'] || '<?php _e('סוג לא ידוע', 'schemati'); ?>';
                 html += '<div style="margin-bottom: 25px; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;">';
-                html += '<div style="padding: 15px; background: #0073aa; color: white;"><h4 style="margin: 0;">' + (index + 1) + '. ' + schemaType + ' Schema</h4></div>';
+                html += '<div style="padding: 15px; background: #0073aa; color: white;"><h4 style="margin: 0;">' + (index + 1) + '. ' + schemaType + ' סכמה</h4></div>';
                 html += '<pre style="background: #2d3748; color: #e2e8f0; padding: 20px; margin: 0; overflow-x: auto; white-space: pre-wrap; font-size: 11px;">' + JSON.stringify(schema, null, 2) + '</pre>';
                 html += '</div>';
             });
